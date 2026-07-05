@@ -44,6 +44,15 @@ try
                     : [target];
             var limit = OptInt("--limit", files.Length);
             files = files.Take(limit).ToArray();
+            if (args.Contains("--skip-existing"))
+            {
+                var done = ExtractionService.LoadArtifacts(dataDir)
+                    .Select(a => Path.GetFileNameWithoutExtension(a.Source))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var before = files.Length;
+                files = files.Where(f => !done.Contains(Path.GetFileNameWithoutExtension(f))).ToArray();
+                Console.WriteLine($"extract: --skip-existing removed {before - files.Length} already-done docs");
+            }
             if (files.Length == 0) { Console.Error.WriteLine($"extract: no supported files in {target}"); exit = 1; break; }
 
             var svc = new ExtractionService(claude, config, dataDir);
@@ -84,7 +93,7 @@ try
         }
 
         case "extract":
-            Console.Error.WriteLine("extract: usage: docextract extract <file|dir|list.txt> [--parallel N] [--tier extraction|escalation] [--limit N]");
+            Console.Error.WriteLine("extract: usage: docextract extract <file|dir|list.txt> [--parallel N] [--tier extraction|escalation] [--limit N] [--skip-existing]");
             exit = 1;
             break;
 
