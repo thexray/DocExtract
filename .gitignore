@@ -1,0 +1,15 @@
+# Local secrets and data — never commit
+appsettings.Development.json
+data/
+*.db
+
+# Working docs and tooling config — local-only by decision (2026-07-06), never push
+SPEC.md
+PLAN.md
+CLAUDE.md
+.claude/
+
+# Build output (full `dotnet new gitignore` to be added at scaffold time)
+[Bb]in/
+[Oo]bj/
+.vs/
