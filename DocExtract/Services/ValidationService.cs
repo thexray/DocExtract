@@ -52,7 +52,7 @@ public static class ValidationService
     private static void Require<T>(List<string> violations, Field<T>? field, string name,
         double minConf, Func<T, bool> ok)
     {
-        if (field?.Value is not { } value) { violations.Add($"{name} missing"); return; }
+        if (field is null || field.Value is not { } value) { violations.Add($"{name} missing"); return; }
         if (!ok(value)) violations.Add($"{name} invalid: '{value}'");
         else if (field.Confidence < minConf)
             violations.Add($"{name} confidence {field.Confidence:0.00} below {minConf:0.00}");
