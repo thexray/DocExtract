@@ -18,17 +18,18 @@ public sealed class ClaudeCliService(IConfiguration config, CostLedger ledger)
     public string EscalationModel => config["ClaudeCli:EscalationModel"] ?? "claude-sonnet-5";
 
     public async Task<ClaudeResult> ExecAsync(string prompt, string model, string purpose,
-        CancellationToken ct)
+        CancellationToken ct, string? allowedTools = null)
     {
         var cli = config["ClaudeCli:Path"];
         if (string.IsNullOrWhiteSpace(cli)) cli = "claude";
         var timeout = TimeSpan.FromSeconds(int.TryParse(config["ClaudeCli:DefaultTimeoutSeconds"], out var t) ? t : 600);
+        var tools = string.IsNullOrWhiteSpace(allowedTools) ? "" : $" --allowedTools {allowedTools}";
 
         var psi = new ProcessStartInfo
         {
             // npm shim on Windows resolves via cmd (claude.cmd); direct exec of .ps1 does not work.
             FileName = "cmd.exe",
-            Arguments = $"/c {cli} -p --model {model} --output-format json",
+            Arguments = $"/c {cli} -p --model {model} --output-format json{tools}",
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

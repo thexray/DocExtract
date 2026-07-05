@@ -23,8 +23,32 @@ try
 
     switch (verb)
     {
+        case "extract" when args.Length >= 2:
+        {
+            var target = args[1];
+            var files = Directory.Exists(target)
+                ? Directory.EnumerateFiles(target)
+                    .Where(f => ExtractionService.SupportedExtensions.Contains(
+                        Path.GetExtension(f).ToLowerInvariant()))
+                    .Order().ToArray()
+                : [target];
+            if (files.Length == 0) { Console.Error.WriteLine($"extract: no supported files in {target}"); exit = 1; break; }
+
+            var svc = new ExtractionService(claude, config, dataDir);
+            var (ok, review, totalCost) = (0, 0, 0m);
+            foreach (var file in files)
+            {
+                var (accepted, cost) = await svc.ProcessAsync(file, cts.Token);
+                totalCost += cost;
+                if (accepted) ok++; else review++;
+                Console.WriteLine($"  {Path.GetFileName(file),-20} {(accepted ? "accepted" : "needs-review"),-12} ${cost:0.0000}");
+            }
+            Console.WriteLine($"extract: {ok} accepted, {review} needs-review, ${totalCost:0.00} total → {Path.Combine(dataDir, "extractions")}");
+            break;
+        }
+
         case "extract":
-            Console.Error.WriteLine("extract: not implemented yet (W1)");
+            Console.Error.WriteLine("extract: usage: docextract extract <file|dir>");
             exit = 1;
             break;
 

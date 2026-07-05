@@ -5,3 +5,21 @@ public sealed record ClaudeResult(bool Ok, string Text, decimal CostUsd, string?
 {
     public static ClaudeResult Fail(string error) => new(false, "", 0m, error);
 }
+
+/// <summary>A field the model extracted, with its self-reported confidence (0..1).</summary>
+public sealed record Field<T>(T? Value, double Confidence);
+
+public sealed record LineItem(string? Description, double? Qty, double? UnitPrice, double? Amount);
+
+/// <summary>
+/// The extraction schema. SROIE ground truth covers vendor/date/address/total; line items
+/// are a CORD-only eval dimension (kept nullable — absence is not a violation).
+/// </summary>
+public sealed record ExtractedDoc(
+    Field<string>? Vendor,
+    Field<string>? Date,
+    Field<string>? Address,
+    Field<double>? Total,
+    Field<string>? Currency,
+    Field<double>? Tax,
+    List<LineItem>? LineItems);
