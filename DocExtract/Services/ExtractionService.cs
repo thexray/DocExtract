@@ -1,5 +1,6 @@
 namespace DocExtract.Services;
 
+using System.Diagnostics;
 using System.Text.Json;
 using DocExtract.Models;
 using Microsoft.Extensions.Configuration;
@@ -19,13 +20,15 @@ public sealed class ExtractionService(ClaudeCliService claude, IConfiguration co
         WriteIndented = true,
     };
 
-    public async Task<(bool Accepted, decimal Cost)> ProcessAsync(string file, CancellationToken ct)
+    public async Task<(bool Accepted, decimal Cost)> ProcessAsync(string file, string model,
+        CancellationToken ct)
     {
         var full = Path.GetFullPath(file);
-        var res = await claude.ExecAsync(BuildPrompt(full), claude.ExtractionModel, "extract", ct,
+        var sw = Stopwatch.StartNew();
+        var res = await claude.ExecAsync(BuildPrompt(full), model, "extract", ct,
             allowedTools: "Read");
         if (!res.Ok)
-            return (Write(full, null, [$"model call failed: {res.Error}"], res.CostUsd), res.CostUsd);
+            return (Write(full, null, [$"model call failed: {res.Error}"], res.CostUsd, model, sw.ElapsedMilliseconds), res.CostUsd);
 
         ExtractedDoc? doc;
         try
@@ -35,13 +38,13 @@ public sealed class ExtractionService(ClaudeCliService claude, IConfiguration co
         }
         catch (JsonException ex)
         {
-            return (Write(full, null, [$"unparseable model output: {ex.Message}"], res.CostUsd), res.CostUsd);
+            return (Write(full, null, [$"unparseable model output: {ex.Message}"], res.CostUsd, model, sw.ElapsedMilliseconds), res.CostUsd);
         }
         if (doc is null)
-            return (Write(full, null, ["model returned empty document"], res.CostUsd), res.CostUsd);
+            return (Write(full, null, ["model returned empty document"], res.CostUsd, model, sw.ElapsedMilliseconds), res.CostUsd);
 
         var violations = ValidationService.Validate(doc, config);
-        return (Write(full, doc, violations, res.CostUsd), res.CostUsd);
+        return (Write(full, doc, violations, res.CostUsd, model, sw.ElapsedMilliseconds), res.CostUsd);
     }
 
     private static string BuildPrompt(string absolutePath) => $$"""
@@ -69,23 +72,36 @@ public sealed class ExtractionService(ClaudeCliService claude, IConfiguration co
         - line_items: [] if the document has none or they are illegible
         """;
 
-    private bool Write(string sourceFile, ExtractedDoc? doc, List<string> violations, decimal cost)
+    private bool Write(string sourceFile, ExtractedDoc? doc, List<string> violations, decimal cost,
+        string model, long elapsedMs)
     {
         var accepted = violations.Count == 0;
         var dir = Path.Combine(dataDir, "extractions", accepted ? "accepted" : "needs-review");
         Directory.CreateDirectory(dir);
-        var artifact = new
-        {
-            source = Path.GetFileName(sourceFile),
-            status = accepted ? "accepted" : "needs-review",
-            violations,
-            extraction = doc,
-            cost_usd = cost,
-            ts = DateTime.UtcNow.ToString("o"),
-        };
-        File.WriteAllText(
-            Path.Combine(dir, Path.GetFileNameWithoutExtension(sourceFile) + ".json"),
-            JsonSerializer.Serialize(artifact, JsonOpts));
+        // A re-run (e.g. escalation) replaces the older artifact wherever it landed, so one
+        // basename never has two competing artifacts across the accepted/needs-review split.
+        var name = Path.GetFileNameWithoutExtension(sourceFile) + ".json";
+        var other = Path.Combine(dataDir, "extractions", accepted ? "needs-review" : "accepted", name);
+        if (File.Exists(other)) File.Delete(other);
+        var artifact = new ExtractionArtifact(
+            Path.GetFileName(sourceFile), accepted ? "accepted" : "needs-review",
+            violations, doc, cost, DateTime.UtcNow.ToString("o"), model, elapsedMs);
+        File.WriteAllText(Path.Combine(dir, name), JsonSerializer.Serialize(artifact, JsonOpts));
         return accepted;
+    }
+
+    public static IEnumerable<ExtractionArtifact> LoadArtifacts(string dataDir)
+    {
+        foreach (var sub in new[] { "accepted", "needs-review" })
+        {
+            var dir = Path.Combine(dataDir, "extractions", sub);
+            if (!Directory.Exists(dir)) continue;
+            foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
+            {
+                var artifact = JsonSerializer.Deserialize<ExtractionArtifact>(
+                    File.ReadAllText(file), JsonOpts);
+                if (artifact is not null) yield return artifact;
+            }
+        }
     }
 }

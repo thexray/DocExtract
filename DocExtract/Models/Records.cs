@@ -26,3 +26,14 @@ public sealed record ExtractedDoc(
     Field<string>? Currency,
     Field<double?>? Tax,
     List<LineItem>? LineItems);
+
+/// <summary>What extract writes per document and eval reads back.</summary>
+public sealed record ExtractionArtifact(
+    string Source,
+    string Status,
+    List<string> Violations,
+    ExtractedDoc? Extraction,
+    decimal CostUsd,
+    string Ts,
+    string Model,
+    long ElapsedMs);
