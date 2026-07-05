@@ -15,11 +15,14 @@ public sealed record LineItem(string? Description, double? Qty, double? UnitPric
 /// The extraction schema. SROIE ground truth covers vendor/date/address/total; line items
 /// are a CORD-only eval dimension (kept nullable — absence is not a violation).
 /// </summary>
+// Numeric fields are Field<double?> deliberately: with an unconstrained generic, T? on a
+// value type is not Nullable<T>, so Field<double> rejects the model's legitimate
+// "value": null for absent fields (found the hard way in the W1 smoke run).
 public sealed record ExtractedDoc(
     Field<string>? Vendor,
     Field<string>? Date,
     Field<string>? Address,
-    Field<double>? Total,
+    Field<double?>? Total,
     Field<string>? Currency,
-    Field<double>? Tax,
+    Field<double?>? Tax,
     List<LineItem>? LineItems);
