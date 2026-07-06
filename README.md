@@ -46,7 +46,7 @@ so the numbers measure reading, not formatting luck.
 | Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |
 |---|---|---|---|---|---|---|---|---|---|---|
 | haiku-250 | claude-haiku-4-5 | 250 | 74.4% | 76.4% | 66.3% | 92.0% | 42.4% | $8.99 | $0.036 | 18.8 |
-| haiku+escalation-250 | claude-haiku-4-5+claude-sonnet-5 | 250 | 81.6% | 90.4% | 77.5% | 96.4% | 60.4% | $16.27 | $0.065 | 16.8 |
+| haiku+escalation-250 | claude-haiku-4-5+claude-sonnet-5 | 250 | 86.0% | 98.8% | 85.5% | 98.4% | 72.8% | $20.14 | $0.081 | 15.6 |
 <!-- eval-results:end -->
 
 Line-item extraction exists in the schema but is not scored here: SROIE's ground truth has
