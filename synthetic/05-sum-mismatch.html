@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>synthetic receipt 05</title><style>
+  body { margin: 0; padding: 24px; background: #eee; }
+  .r { width: 300px; margin: 0 auto; background: #fff; padding: 18px 14px; font: 13px/1.5 "Courier New", monospace; color: #111; }
+  .c { text-align: center; } .b { font-weight: bold; } .lg { font-size: 16px; }
+  .row { display: flex; justify-content: space-between; }
+  hr { border: 0; border-top: 1px dashed #555; margin: 8px 0; }
+  @media print { body { background: #fff; padding: 0; } .r { width: 72mm; } }
+</style></head><body><div class="r">
+  <div class="c b lg">HERBAL WELLNESS TRADING</div>
+  <div class="c">NO.88, JALAN MERU JAYA 4,<br>30020 IPOH, PERAK</div>
+  <hr>
+  <div class="row"><span>BILL 2201-A</span><span>08/01/2026</span></div>
+  <hr>
+  <!-- Items intentionally sum to 15.70 while the printed total says 18.70: this receipt
+       exists to trigger the deterministic line-items-sum validator, not the model. -->
+  <div class="row"><span>GINGER TEA 20 SACHETS</span><span>5.00</span></div>
+  <div class="row"><span>HONEY 350G</span><span>7.50</span></div>
+  <div class="row"><span>LOZENGES 3PK</span><span>3.20</span></div>
+  <hr>
+  <div class="row b"><span>TOTAL</span><span>RM 18.70</span></div>
+  <div class="row"><span>CASH</span><span>20.00</span></div>
+  <div class="row"><span>CHANGE</span><span>1.30</span></div>
+  <hr>
+  <div class="c">GOODS SOLD ARE NOT RETURNABLE</div>
+</div></body></html>
