@@ -7,6 +7,7 @@ data/
 SPEC.md
 PLAN.md
 CLAUDE.md
+RECORDING.md
 .claude/
 
 # Build output (full `dotnet new gitignore` to be added at scaffold time)
