@@ -14,7 +14,14 @@ using Microsoft.Extensions.Configuration;
 public sealed class EvalService(IConfiguration config, string dataDir)
 {
     private static readonly string[] Fields = ["company", "date", "address", "total"];
-    private static readonly string[] GtDateFormats = ["dd/MM/yyyy", "dd-MM-yyyy", "yyyy-MM-dd", "dd MMM yyyy", "d MMM yyyy", "dd MMM yy"];
+    // SROIE keys keep whatever format the receipt printed, day-first (Malaysia): two-digit
+    // years and single-digit day/month appear alongside the long forms.
+    private static readonly string[] GtDateFormats =
+    [
+        "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy",
+        "dd/MM/yy", "d/M/yy", "dd-MM-yy", "d-M-yy", "dd.MM.yy",
+        "yyyy-MM-dd", "dd MMM yyyy", "d MMM yyyy", "dd MMM yy",
+    ];
 
     public int Run(string label, CancellationToken ct)
     {
@@ -26,6 +33,7 @@ public sealed class EvalService(IConfiguration config, string dataDir)
         if (artifacts.Count == 0) { Console.Error.WriteLine("eval: no artifacts with matching ground truth"); return 1; }
 
         var correct = Fields.ToDictionary(f => f, _ => 0);
+        var graded = Fields.ToDictionary(f => f, _ => 0);
         var mismatchExamples = Fields.ToDictionary(f => f, _ => new List<string>());
         var failedDocs = new List<string>();
         var (exact, totalCost, totalMs) = (0, 0m, 0L);
@@ -40,6 +48,9 @@ public sealed class EvalService(IConfiguration config, string dataDir)
             foreach (var field in Fields)
             {
                 var expected = gt.RootElement.TryGetProperty(field, out var p) ? p.GetString() ?? "" : "";
+                // No ground truth for this field on this doc — ungradeable, not wrong.
+                if (string.IsNullOrWhiteSpace(expected)) continue;
+                graded[field]++;
                 var got = Extracted(artifact.Extraction, field);
                 if (FieldMatches(field, expected, got)) correct[field]++;
                 else
@@ -62,7 +73,8 @@ public sealed class EvalService(IConfiguration config, string dataDir)
             ts = DateTime.UtcNow.ToString("o"),
             models = string.Join("+", models),
             docs = artifacts.Count,
-            accuracy = Fields.ToDictionary(f => f, f => Math.Round((double)correct[f] / artifacts.Count, 4)),
+            accuracy = Fields.ToDictionary(f => f, f => Math.Round((double)correct[f] / Math.Max(1, graded[f]), 4)),
+            graded = Fields.ToDictionary(f => f, f => graded[f]),
             exact_match = Math.Round((double)exact / artifacts.Count, 4),
             cost_usd = totalCost,
             avg_ms = totalMs / artifacts.Count,
@@ -75,7 +87,8 @@ public sealed class EvalService(IConfiguration config, string dataDir)
         File.WriteAllLines(Path.Combine(dataDir, "eval", $"failed-{label}.txt"), failedDocs);
 
         var sb = new StringBuilder($"eval [{label}] {artifacts.Count} docs, models {run.models}:\n");
-        foreach (var f in Fields) sb.Append($"  {f,-8} {(double)correct[f] / artifacts.Count:P1}\n");
+        foreach (var f in Fields)
+            sb.Append($"  {f,-8} {(double)correct[f] / Math.Max(1, graded[f]):P1}  ({correct[f]}/{graded[f]})\n");
         sb.Append($"  exact    {(double)exact / artifacts.Count:P1}\n");
         sb.Append($"  cost ${totalCost:0.00}, avg {totalMs / artifacts.Count / 1000.0:0.0}s/doc, {failedDocs.Count} docs → eval/failed-{label}.txt");
         Console.WriteLine(sb.ToString());
@@ -97,11 +110,17 @@ public sealed class EvalService(IConfiguration config, string dataDir)
         return field switch
         {
             "date" => ParseDate(expected) is { } e && ParseDate(got) is { } g && e == g,
-            "total" => decimal.TryParse(expected, NumberStyles.Any, CultureInfo.InvariantCulture, out var et)
-                       && decimal.TryParse(got, NumberStyles.Any, CultureInfo.InvariantCulture, out var gt2)
-                       && et == gt2,
+            "total" => ParseAmount(expected) is { } et && ParseAmount(got) is { } gt2 && et == gt2,
             _ => Normalize(expected) == Normalize(got),
         };
+    }
+
+    /// <summary>GT amounts carry currency marks the invariant parser rejects ("$8.20",
+    /// "RM 8.20") — strip to the numeric core before comparing.</summary>
+    private static decimal? ParseAmount(string s)
+    {
+        var numeric = new string(s.Where(c => char.IsDigit(c) || c is '.' or ',' or '-').ToArray());
+        return decimal.TryParse(numeric, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
     private static DateTime? ParseDate(string s) =>
