@@ -364,8 +364,12 @@ public sealed class RetrievalEvalService(
         if (!File.Exists(path)) return "";
 
         var table = new StringBuilder();
-        table.AppendLine("| Run | Pipeline | Docs | Questions | Recall@1 | Recall@5 | Recall@10 | MRR | Grounded | Cost |");
-        table.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+        // Explicit \n, not Environment.NewLine — same reason as the extraction table in
+        // Program.cs: a README regenerated on another OS must come out byte-identical.
+        void Row(string s) => table.Append(s).Append('\n');
+
+        Row("| Run | Pipeline | Docs | Questions | Recall@1 | Recall@5 | Recall@10 | MRR | Grounded | Cost |");
+        Row("|---|---|---|---|---|---|---|---|---|---|");
         foreach (var line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -376,7 +380,7 @@ public sealed class RetrievalEvalService(
             var attempted = answers.GetProperty("attempted").GetInt32();
             var grounded = attempted == 0 ? "n/a"
                 : $"{answers.GetProperty("grounded").GetInt32()}/{attempted}";
-            table.AppendLine(
+            Row(
                 $"| {r.GetProperty("label").GetString()} | {r.GetProperty("pipeline").GetString()} " +
                 $"| {r.GetProperty("docs").GetInt32()} | {r.GetProperty("questions").GetInt32()} " +
                 $"| {recall.GetProperty("1").GetDouble():P1} | {recall.GetProperty("5").GetDouble():P1} " +

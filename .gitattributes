@@ -1,0 +1,24 @@
+# Line endings are normalized to LF in the repository. Without this, `docextract report`
+# rewrites README.md with LF against a CRLF checkout and the file shows as modified with no
+# number changed — a phantom diff after every run, on a project whose whole claim is that its
+# published figures are regenerated rather than edited.
+* text=auto
+
+*.cs      text eol=lf
+*.csproj  text eol=lf
+*.slnx    text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.ps1     text eol=lf
+*.html    text eol=lf
+.gitignore text eol=lf
+
+# Batch files are the exception: cmd.exe can mis-handle `goto` label resolution in a
+# LF-only .cmd, and scripts/stub-claude-cli.cmd is built entirely out of goto.
+*.cmd     text eol=crlf
+
+# Receipt images are binary; never touch them and never try to diff them.
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.pdf  binary

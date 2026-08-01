@@ -141,8 +141,13 @@ try
             }
 
             var table = new StringBuilder();
-            table.AppendLine("| Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |");
-            table.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
+            // Rows are joined with an explicit \n, never Environment.NewLine: this table is
+            // written into the README by whichever machine runs `report`, and line endings
+            // that follow the OS would produce a diff that changes no number.
+            void Row(string s) => table.Append(s).Append('\n');
+
+            Row("| Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |");
+            Row("|---|---|---|---|---|---|---|---|---|---|---|");
             foreach (var line in File.ReadLines(runsPath))
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
@@ -151,7 +156,7 @@ try
                 var docs = r.GetProperty("docs").GetInt32();
                 var cost = r.GetProperty("cost_usd").GetDecimal();
                 var acc = r.GetProperty("accuracy");
-                table.AppendLine(
+                Row(
                     $"| {r.GetProperty("label").GetString()} | {r.GetProperty("models").GetString()} | {docs} " +
                     $"| {acc.GetProperty("company").GetDouble():P1} | {acc.GetProperty("date").GetDouble():P1} " +
                     $"| {acc.GetProperty("address").GetDouble():P1} | {acc.GetProperty("total").GetDouble():P1} " +
