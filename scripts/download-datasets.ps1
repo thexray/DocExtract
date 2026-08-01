@@ -1,9 +1,13 @@
-# Downloads eval datasets into data/datasets/ (gitignored — no dataset files are ever
+# Downloads eval datasets into data/datasets/ (gitignored - no dataset files are ever
 # committed; see README licensing section). Also stages a 10-image smoke set.
 #
 # SROIE (primary, English): community mirror of the ICDAR 2019 competition data.
-# CORD (secondary, line items): W2 — v2 lives on Hugging Face as parquet
+# CORD (secondary, line items): W2 - v2 lives on Hugging Face as parquet
 #   (naver-clova-ix/cord-v2); wiring it up belongs to the eval milestone.
+#
+# ASCII only, deliberately: this file has no BOM, so Windows PowerShell 5.1 reads it as ANSI
+# while pwsh 7 assumes UTF-8. A non-ASCII character inside a string is a parse error under
+# 5.1 - which is the default `powershell` on Windows and so the first thing a reader hits.
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -22,6 +26,6 @@ $smoke = Join-Path $root 'data/smoke'
 New-Item -ItemType Directory -Force $smoke | Out-Null
 $images = Get-ChildItem $sroie -Recurse -Include *.jpg, *.jpeg, *.png -File |
     Sort-Object FullName | Select-Object -First 10
-if ($images.Count -eq 0) { throw "no images found under $sroie — mirror layout changed?" }
+if ($images.Count -eq 0) { throw "no images found under $sroie - mirror layout changed?" }
 $images | Copy-Item -Destination $smoke -Force
 Write-Host "smoke set: $($images.Count) images -> $smoke"
