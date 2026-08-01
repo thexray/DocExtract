@@ -1,13 +1,14 @@
 # DocExtract
 
 An LLM document-extraction pipeline that publishes its own report card. Receipts and
-invoices go in; validated, typed JSON comes out — and every accuracy number in this README
-is regenerated from stored eval runs by `docextract report`, never hand-edited.
+invoices go in; validated, typed JSON comes out; the corpus that builds answers questions
+with checked citations. Every number in this README — extraction and retrieval alike — is
+regenerated from stored eval runs by `docextract report`, never hand-edited.
 
 Most extraction demos show a cherry-picked success. This project inverts that: a cheap model
 does the reading, a deterministic validator decides what can be trusted, an eval harness
-measures field-level accuracy against public ground truth, and the failures get counted and
-categorized instead of cropped out.
+measures field-level accuracy against public ground truth, retrieval over the results is
+scored the same way, and the failures get counted and categorized instead of cropped out.
 
 ## How it works
 
