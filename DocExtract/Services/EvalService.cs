@@ -14,14 +14,6 @@ using Microsoft.Extensions.Configuration;
 public sealed class EvalService(IConfiguration config, string dataDir)
 {
     private static readonly string[] Fields = ["company", "date", "address", "total"];
-    // SROIE keys keep whatever format the receipt printed, day-first (Malaysia): two-digit
-    // years and single-digit day/month appear alongside the long forms.
-    private static readonly string[] GtDateFormats =
-    [
-        "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy",
-        "dd/MM/yy", "d/M/yy", "dd-MM-yy", "d-M-yy", "dd.MM.yy",
-        "yyyy-MM-dd", "dd MMM yyyy", "d MMM yyyy", "dd MMM yy",
-    ];
 
     public int Run(string label, CancellationToken ct)
     {
@@ -107,36 +99,13 @@ public sealed class EvalService(IConfiguration config, string dataDir)
     private static bool FieldMatches(string field, string expected, string? got)
     {
         if (string.IsNullOrWhiteSpace(got)) return string.IsNullOrWhiteSpace(expected);
+        // Comparators live in GroundTruth so the retrieval slice scores against exactly the
+        // same notion of "same date"/"same company" this table was built on.
         return field switch
         {
-            "date" => ParseDate(expected) is { } e && ParseDate(got) is { } g && e == g,
-            "total" => ParseAmount(expected) is { } et && ParseAmount(got) is { } gt2 && et == gt2,
-            _ => Normalize(expected) == Normalize(got),
+            "date" => GroundTruth.ParseDate(expected) is { } e && GroundTruth.ParseDate(got) is { } g && e == g,
+            "total" => GroundTruth.ParseAmount(expected) is { } et && GroundTruth.ParseAmount(got) is { } gt2 && et == gt2,
+            _ => GroundTruth.Normalize(expected) == GroundTruth.Normalize(got),
         };
-    }
-
-    /// <summary>GT amounts carry currency marks the invariant parser rejects ("$8.20",
-    /// "RM 8.20") — strip to the numeric core before comparing.</summary>
-    private static decimal? ParseAmount(string s)
-    {
-        var numeric = new string(s.Where(c => char.IsDigit(c) || c is '.' or ',' or '-').ToArray());
-        return decimal.TryParse(numeric, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
-    }
-
-    private static DateTime? ParseDate(string s) =>
-        DateTime.TryParseExact(s.Trim(), GtDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d
-        : DateTime.TryParse(s.Trim(), CultureInfo.InvariantCulture, out var d2) ? d2 : null;
-
-    /// <summary>Case/whitespace/punctuation-insensitive: OCR-adjacent strings should tie.</summary>
-    private static string Normalize(string s)
-    {
-        var sb = new StringBuilder(s.Length);
-        var lastSpace = false;
-        foreach (var ch in s.ToUpperInvariant())
-        {
-            if (char.IsLetterOrDigit(ch)) { sb.Append(ch); lastSpace = false; }
-            else if (!lastSpace && sb.Length > 0) { sb.Append(' '); lastSpace = true; }
-        }
-        return sb.ToString().TrimEnd();
     }
 }

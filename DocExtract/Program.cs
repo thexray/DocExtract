@@ -102,6 +102,21 @@ try
             exit = 1;
             break;
 
+        case "eval" when args.Contains("--retrieval"):
+        {
+            // Retrieval scores the artifacts that already exist — it never re-extracts, because
+            // every re-extraction is paid twice and the corpus is already on disk.
+            var opt = new RetrievalOptions(
+                Label: Opt("--label", $"retrieval-{DateTime.UtcNow:yyyyMMdd-HHmmss}"),
+                Questions: OptInt("--questions", 30),
+                AnswerK: OptInt("--k", 5),
+                Rewrite: args.Contains("--rewrite"),
+                Rerank: args.Contains("--rerank"),
+                Answers: !args.Contains("--no-answers"));
+            exit = await new RetrievalEvalService(claude, ledger, config, dataDir).RunAsync(opt, cts.Token);
+            break;
+        }
+
         case "eval":
             exit = new EvalService(config, dataDir).Run(Opt("--label", $"run-{DateTime.UtcNow:yyyyMMdd-HHmmss}"), cts.Token);
             break;
@@ -114,8 +129,16 @@ try
             Console.WriteLine(calls == 0
                 ? "  calls: none this month"
                 : $"  calls: {calls}, of which {retries} retries ({(double)retries / calls:P1}) costing ${retryCost:0.00##}");
+            var retrievalTable = RetrievalEvalService.BuildTable(dataDir);
+            if (retrievalTable.Length > 0) Console.WriteLine("\nretrieval runs:\n" + retrievalTable);
+
             var runsPath = Path.Combine(dataDir, "eval_runs.jsonl");
-            if (!File.Exists(runsPath)) { Console.WriteLine("no eval runs recorded yet"); break; }
+            if (!File.Exists(runsPath))
+            {
+                Console.WriteLine("no extraction eval runs recorded yet");
+                if (retrievalTable.Length > 0) WriteReadmeBlocks(null, retrievalTable);
+                break;
+            }
 
             var table = new StringBuilder();
             table.AppendLine("| Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |");
@@ -136,21 +159,7 @@ try
                     $"| {r.GetProperty("avg_ms").GetInt64() / 1000.0:0.0} |");
             }
             Console.WriteLine(table.ToString());
-
-            // Regenerate the README block between the eval markers, if the README is present.
-            var readme = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "README.md");
-            readme = Path.GetFullPath(readme);
-            if (File.Exists(readme))
-            {
-                const string begin = "<!-- eval-results:begin -->", end = "<!-- eval-results:end -->";
-                var text = File.ReadAllText(readme);
-                var (i, j) = (text.IndexOf(begin), text.IndexOf(end));
-                if (i >= 0 && j > i)
-                {
-                    File.WriteAllText(readme, text[..(i + begin.Length)] + "\n" + table + text[j..]);
-                    Console.WriteLine($"README results table regenerated: {readme}");
-                }
-            }
+            WriteReadmeBlocks(table.ToString(), retrievalTable);
             break;
         }
 
@@ -161,6 +170,7 @@ try
             Console.WriteLine($"  EscalationModel   {claude.EscalationModel}");
             Console.WriteLine($"  MaxAttempts       {config["ClaudeCli:MaxAttempts"] ?? "(default: 2)"}");
             Console.WriteLine($"  EvalBudgetUsd     {config["EvalBudgetUsd"]}");
+            Console.WriteLine($"  Retrieval tripwire {config["Retrieval:QuestionCostTripwireUsd"] ?? "(default: 0.15)"} per question");
             Console.WriteLine($"  Sroie:KeysDir     {(Directory.Exists(config["Sroie:KeysDir"] ?? "") ? "ok" : "MISSING")}");
             Console.WriteLine($"  ClaudeCli:Path    {(string.IsNullOrWhiteSpace(config["ClaudeCli:Path"]) ? "(PATH default: claude)" : "set")}");
             break;
@@ -172,7 +182,12 @@ try
                 usage:
                   docextract extract <file|dir|list.txt> [--parallel N] [--tier extraction|escalation] [--limit N]
                   docextract eval [--label NAME]      score artifacts against ground truth
-                  docextract report                   eval results table + month-to-date LLM cost
+                  docextract eval --retrieval [--label NAME] [--questions N] [--k N]
+                                  [--rewrite] [--rerank] [--no-answers]
+                                                      recall@k / MRR / groundedness over the
+                                                      artifacts already extracted (never re-extracts;
+                                                      --no-answers is the $0 retrieval-only pass)
+                  docextract report                   eval results tables + month-to-date LLM cost
                   docextract check                    config smoke check (key presence only)
                 """);
             exit = verb == "help" ? 0 : 1;
@@ -196,4 +211,26 @@ string Opt(string name, string fallback)
 {
     var i = Array.IndexOf(args, name);
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : fallback;
+}
+
+// Both README tables are generated, never hand-edited — that is the claim the README makes
+// about its own numbers, so the only way a figure gets in there is through this function.
+void WriteReadmeBlocks(string? evalTable, string? retrievalTable)
+{
+    var readme = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "README.md"));
+    if (!File.Exists(readme)) return;
+
+    var text = File.ReadAllText(readme);
+    var updated = Replace(Replace(text, "eval-results", evalTable), "retrieval-results", retrievalTable);
+    if (updated == text) return;
+    File.WriteAllText(readme, updated);
+    Console.WriteLine($"README tables regenerated: {readme}");
+
+    static string Replace(string text, string marker, string? table)
+    {
+        if (string.IsNullOrEmpty(table)) return text;
+        string begin = $"<!-- {marker}:begin -->", end = $"<!-- {marker}:end -->";
+        var (i, j) = (text.IndexOf(begin, StringComparison.Ordinal), text.IndexOf(end, StringComparison.Ordinal));
+        return i >= 0 && j > i ? text[..(i + begin.Length)] + "\n" + table + text[j..] : text;
+    }
 }
