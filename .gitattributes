@@ -11,7 +11,8 @@
 *.md      text eol=lf
 *.ps1     text eol=lf
 *.html    text eol=lf
-.gitignore text eol=lf
+.gitignore    text eol=lf
+.gitattributes text eol=lf
 
 # Batch files are the exception: cmd.exe can mis-handle `goto` label resolution in a
 # LF-only .cmd, and scripts/stub-claude-cli.cmd is built entirely out of goto.
