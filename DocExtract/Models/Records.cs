@@ -1,7 +1,13 @@
 namespace DocExtract.Models;
 
-/// <summary>Outcome of one headless CLI call. Cost is the CLI-reported total for the call.</summary>
-public sealed record ClaudeResult(bool Ok, string Text, decimal CostUsd, string? Error)
+/// <summary>
+/// Outcome of one logical model call. <paramref name="CostUsd"/> is the CLI-reported cost
+/// summed over every attempt, so a retried call reports what it actually cost, not what the
+/// winning attempt cost. <paramref name="FirstFailure"/> is non-null only when an earlier
+/// attempt failed — it survives into the artifact as the record of what was recovered from.
+/// </summary>
+public sealed record ClaudeResult(bool Ok, string Text, decimal CostUsd, string? Error,
+    int Attempts = 1, string? FirstFailure = null)
 {
     public static ClaudeResult Fail(string error) => new(false, "", 0m, error);
 }
@@ -27,7 +33,11 @@ public sealed record ExtractedDoc(
     Field<double?>? Tax,
     List<LineItem>? LineItems);
 
-/// <summary>What extract writes per document and eval reads back.</summary>
+/// <summary>
+/// What extract writes per document and eval reads back. Attempts/RetriedAfter are trailing
+/// optionals: artifacts written before in-loop retry existed have neither, and deserialize
+/// with Attempts = 1 (net8 honours constructor parameter defaults for absent properties).
+/// </summary>
 public sealed record ExtractionArtifact(
     string Source,
     string Status,
@@ -36,4 +46,6 @@ public sealed record ExtractionArtifact(
     decimal CostUsd,
     string Ts,
     string Model,
-    long ElapsedMs);
+    long ElapsedMs,
+    int Attempts = 1,
+    string? RetriedAfter = null);

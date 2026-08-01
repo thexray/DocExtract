@@ -17,6 +17,7 @@ categorized instead of cropped out.
         ▼
  vision extraction ──── Claude Haiku, headless CLI, Read tool only;
         │               per-field self-reported confidence
+        │               └─ output unparseable? one retry, billed and logged
         ▼
  deterministic validation ── dates parse, totals positive, currency whitelist,
         │                    line items sum to total, confidence floor —
@@ -35,6 +36,25 @@ categorized instead of cropped out.
 Every LLM call is cost-logged to an append-only ledger. Extraction stops scheduling new
 calls when month-to-date spend reaches the budget — the cap is enforced by code, not by
 intention.
+
+### When a call comes back wrong
+
+Models sometimes answer a "return JSON" instruction with prose, or with JSON wrapped in
+apology. That is a transport-shaped failure, not a data-shaped one, so it is retried once
+with the required shape restated — and the retry is visible from three sides: the artifact
+records `attempts: 2` and the exact parse error it recovered from, the ledger gets a second
+line under `extract:retry`, and the document's cost is the sum of both calls. `report` prints
+the month's retry rate and what retries cost.
+
+Two rules keep this from becoming a way to launder bad output. The retry limit is bounded
+(`ClaudeCli:MaxAttempts`, default 2, hard-clamped at 3) because an unbounded loop on a paid
+call is a runaway bill, not resilience. And a retry only decides whether a document was
+*read* — never whether the reading was *right*. That verdict stays with the deterministic
+validator, which the retry never re-runs, relaxes, or gets a second opinion from. A document
+that fails both attempts lands in `needs-review` with both attempts charged for.
+
+`scripts/stub-claude-cli.cmd` is a CLI test double that fails on demand, so the recovery path
+can be exercised without waiting for a real model to misbehave.
 
 ## Results
 
@@ -87,6 +107,11 @@ Configuration layers: `appsettings.json` (committed, non-secret defaults) →
   deliberately not used by the eval, which trusts only ground truth.
 - Scanned-receipt quality varies wildly; the failure examples recorded per eval run are the
   actual error surface, not a curated subset.
+- The published results table predates the retry path, so those numbers include no retried
+  documents. Retry recovers malformed *responses*, not misread *fields* — the accuracy columns
+  would move only for documents lost to unparseable output, and the table was not re-run to
+  claim that, because re-extracting a scored corpus to chase a rounding difference is exactly
+  the kind of spend the budget exists to refuse.
 
 ## Colophon
 

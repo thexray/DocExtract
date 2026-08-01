@@ -58,7 +58,7 @@ try
             var svc = new ExtractionService(claude, config, dataDir);
             var gate = new SemaphoreSlim(parallel);
             var console = new object();
-            var (ok, review, skipped) = (0, 0, 0);
+            var (ok, review, skipped, retried) = (0, 0, 0, 0);
             var totalCost = 0m;
 
             var tasks = files.Select(async file =>
@@ -73,12 +73,14 @@ try
                         lock (console) { skipped++; }
                         return;
                     }
-                    var (accepted, cost) = await svc.ProcessAsync(file, model, cts.Token);
+                    var (accepted, cost, attempts) = await svc.ProcessAsync(file, model, cts.Token);
                     lock (console)
                     {
                         totalCost += cost;
                         if (accepted) ok++; else review++;
-                        Console.WriteLine($"  {Path.GetFileName(file),-20} {(accepted ? "accepted" : "needs-review"),-12} ${cost:0.0000}");
+                        if (attempts > 1) retried++;
+                        Console.WriteLine($"  {Path.GetFileName(file),-20} {(accepted ? "accepted" : "needs-review"),-12} ${cost:0.0000}" +
+                            (attempts > 1 ? $"  (retried ×{attempts - 1})" : ""));
                     }
                 }
                 finally { gate.Release(); }
@@ -86,6 +88,9 @@ try
             await Task.WhenAll(tasks);
 
             Console.WriteLine($"extract [{model}]: {ok} accepted, {review} needs-review" +
+                // "retried" counts documents that needed a second attempt, not documents the
+                // retry saved — a doc that failed both attempts is still needs-review above.
+                (retried > 0 ? $", {retried} retried" : "") +
                 (skipped > 0 ? $", {skipped} SKIPPED (budget ${budget:0.00} reached)" : "") +
                 $", ${totalCost:0.00} this run → {Path.Combine(dataDir, "extractions")}");
             if (skipped > 0) exit = 2;
@@ -105,6 +110,10 @@ try
         {
             var spent = ledger.MonthToDate();
             Console.WriteLine($"LLM cost month-to-date: ${spent:0.00} of ${budget:0.00} budget");
+            var (calls, retries, retryCost) = ledger.MonthToDateRetries();
+            Console.WriteLine(calls == 0
+                ? "  calls: none this month"
+                : $"  calls: {calls}, of which {retries} retries ({(double)retries / calls:P1}) costing ${retryCost:0.00##}");
             var runsPath = Path.Combine(dataDir, "eval_runs.jsonl");
             if (!File.Exists(runsPath)) { Console.WriteLine("no eval runs recorded yet"); break; }
 
@@ -150,6 +159,7 @@ try
             Console.WriteLine($"  DataDirectory     {dataDir}");
             Console.WriteLine($"  ExtractionModel   {claude.ExtractionModel}");
             Console.WriteLine($"  EscalationModel   {claude.EscalationModel}");
+            Console.WriteLine($"  MaxAttempts       {config["ClaudeCli:MaxAttempts"] ?? "(default: 2)"}");
             Console.WriteLine($"  EvalBudgetUsd     {config["EvalBudgetUsd"]}");
             Console.WriteLine($"  Sroie:KeysDir     {(Directory.Exists(config["Sroie:KeysDir"] ?? "") ? "ok" : "MISSING")}");
             Console.WriteLine($"  ClaudeCli:Path    {(string.IsNullOrWhiteSpace(config["ClaudeCli:Path"]) ? "(PATH default: claude)" : "set")}");

@@ -17,8 +17,53 @@ public sealed class ClaudeCliService(IConfiguration config, CostLedger ledger)
     public string ExtractionModel => config["ClaudeCli:ExtractionModel"] ?? "claude-haiku-4-5";
     public string EscalationModel => config["ClaudeCli:EscalationModel"] ?? "claude-sonnet-5";
 
+    /// <summary>
+    /// One logical model call, with bounded in-loop retry. An attempt fails either in transport
+    /// (timeout, non-zero exit, unparseable CLI envelope) or in its payload — <paramref
+    /// name="payloadCheck"/> returns a reason string when the model's own output cannot be used,
+    /// which is the failure mode a caller cannot detect from the exit code alone. A retry re-asks
+    /// with <paramref name="retryNudge"/> appended and is logged to the ledger under
+    /// <c>{purpose}:retry</c>, so recovery shows up as a second cost line rather than as nothing.
+    /// The returned cost is the sum over attempts: retrying is cheaper than a wrong answer, but
+    /// it is never free, and the ledger is the one place that must never round it away.
+    /// </summary>
     public async Task<ClaudeResult> ExecAsync(string prompt, string model, string purpose,
-        CancellationToken ct, string? allowedTools = null)
+        CancellationToken ct, string? allowedTools = null,
+        Func<string, string?>? payloadCheck = null, string? retryNudge = null)
+    {
+        // Clamped: an unbounded retry loop on a paid call is a runaway bill, not resilience.
+        var maxAttempts = Math.Clamp(
+            int.TryParse(config["ClaudeCli:MaxAttempts"], out var m) ? m : 2, 1, 3);
+        var cost = 0m;
+        string? firstFailure = null;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            var retrying = attempt > 1;
+            var res = await ExecOnceAsync(
+                retrying && retryNudge is not null ? prompt + retryNudge : prompt,
+                model, retrying ? $"{purpose}:retry" : purpose, ct, allowedTools);
+            cost += res.CostUsd;
+
+            var failure = !res.Ok ? res.Error ?? "model call failed" : payloadCheck?.Invoke(res.Text);
+            if (failure is null)
+                return res with { CostUsd = cost, Attempts = attempt, FirstFailure = firstFailure };
+
+            firstFailure ??= failure;
+            if (attempt >= maxAttempts)
+            {
+                // Name the earlier failure only when it differs — the common case is the same
+                // fault twice, and repeating it verbatim buries the attempt count that matters.
+                var detail = attempt == 1 ? failure
+                    : failure == firstFailure ? $"{failure} (unchanged after {attempt} attempts)"
+                    : $"{failure} (after {attempt} attempts; first: {firstFailure})";
+                return new ClaudeResult(false, res.Text, cost, detail, attempt, firstFailure);
+            }
+        }
+    }
+
+    private async Task<ClaudeResult> ExecOnceAsync(string prompt, string model, string purpose,
+        CancellationToken ct, string? allowedTools)
     {
         var cli = config["ClaudeCli:Path"];
         if (string.IsNullOrWhiteSpace(cli)) cli = "claude";

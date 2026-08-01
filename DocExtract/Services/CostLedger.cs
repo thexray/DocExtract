@@ -24,6 +24,30 @@ public sealed class CostLedger(string dataDir)
         lock (Gate) File.AppendAllText(_path, line + Environment.NewLine);
     }
 
+    /// <summary>
+    /// Month-to-date split into first attempts and retries. Retries are logged as
+    /// <c>{purpose}:retry</c>; keeping their spend visible is the point — a retry rate that
+    /// starts costing real money is a prompt problem, and the ledger is where it shows up first.
+    /// </summary>
+    public (int Calls, int Retries, decimal RetryCostUsd) MonthToDateRetries()
+    {
+        if (!File.Exists(_path)) return (0, 0, 0m);
+        var monthPrefix = DateTime.UtcNow.ToString("yyyy-MM");
+        var (calls, retries, retryCost) = (0, 0, 0m);
+        foreach (var line in File.ReadLines(_path))
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.GetProperty("ts").GetString()?.StartsWith(monthPrefix) != true) continue;
+            calls++;
+            if (root.GetProperty("purpose").GetString()?.EndsWith(":retry") != true) continue;
+            retries++;
+            retryCost += root.GetProperty("cost_usd").GetDecimal();
+        }
+        return (calls, retries, retryCost);
+    }
+
     public decimal MonthToDate()
     {
         if (!File.Exists(_path)) return 0m;
