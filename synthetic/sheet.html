@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>synthetic receipts - A4 cut sheet</title><style>
+  @page { size: A4; margin: 8mm; }
+
+  html, body { margin: 0; padding: 0; background: #fff; }
+
+  /* Screen view mimics the printed page so what you see is what you cut. */
+  .sheet {
+    width: 194mm;            /* A4 210mm - 2 x 8mm margin */
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: min-content;
+  }
+
+  /* One cut cell: dashed guide with clearance so scissors never touch the receipt. */
+  .cut {
+    border: 1px dashed #d4d4d4;
+    padding: 3mm;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Collapse shared guides so neighbours are one cut, not two. */
+  .sheet > .cut:nth-child(2n) { border-left: 0; }
+  .sheet > .cut:nth-child(n+3) { border-top: 0; }
+
+  .r {
+    width: 72mm;
+    background: #fff;
+    padding: 4mm 3mm;
+    font: 12px/1.45 "Courier New", monospace;
+    color: #111;
+  }
+  .c { text-align: center; } .b { font-weight: bold; } .lg { font-size: 15px; }
+  .row { display: flex; justify-content: space-between; gap: 6px; }
+  .row > span:last-child { white-space: nowrap; }
+  .hand { font-family: "Segoe Script", "Bradley Hand", cursive; font-size: 14px; }
+  hr { border: 0; border-top: 1px dashed #555; margin: 6px 0; }
+
+  @media print { .cut { border-color: #d9d9d9; } }
+</style></head><body>
+<div class="sheet">
+
+  <!-- 01 person-name-trap -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">TAN MEI LING</div>
+    <div class="c b">SUNRISE MART SDN BHD</div>
+    <div class="c">(001234567-X)</div>
+    <div class="c">NO.12, JALAN BUNGA RAYA 3,<br>TAMAN SERI INDAH,<br>81200 JOHOR BAHRU, JOHOR</div>
+    <hr>
+    <div class="row"><span>INV: SM-008841</span><span>15/03/2026</span></div>
+    <div class="row"><span>CASHIER: 04</span><span>11:42</span></div>
+    <hr>
+    <div class="row"><span>MINERAL WATER 500ML</span><span>3.50</span></div>
+    <div class="row"><span>INSTANT NOODLE 5PK</span><span>12.90</span></div>
+    <div class="row"><span>EGGS GRADE A x10</span><span>5.60</span></div>
+    <hr>
+    <div class="row b"><span>TOTAL</span><span>RM 22.00</span></div>
+    <div class="row"><span>CASH</span><span>25.00</span></div>
+    <div class="row"><span>CHANGE</span><span>3.00</span></div>
+    <hr>
+    <div class="c">THANK YOU, PLEASE COME AGAIN</div>
+  </div></div>
+
+  <!-- 02 ambiguous-date -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">RESTORAN GEMBIRA</div>
+    <div class="c">LOT 7, JALAN PASAR LAMA,<br>43000 KAJANG, SELANGOR</div>
+    <hr>
+    <div class="row"><span>RCPT #17752</span><span>03/04/26</span></div>
+    <div class="row"><span>TABLE 6</span><span>13:05</span></div>
+    <hr>
+    <div class="row"><span>NASI GORENG AYAM</span><span>4.20</span></div>
+    <div class="row"><span>TEH TARIK</span><span>3.80</span></div>
+    <hr>
+    <div class="row b"><span>TOTAL</span><span>RM 8.00</span></div>
+    <div class="row"><span>CASH</span><span>10.00</span></div>
+    <div class="row"><span>CHANGE</span><span>2.00</span></div>
+    <hr>
+    <div class="c">TERIMA KASIH</div>
+  </div></div>
+
+  <!-- 03 multi-currency -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">SKYGATE DUTY FREE</div>
+    <div class="c">TERMINAL 2, GATE K11,<br>SEPANG, SELANGOR</div>
+    <hr>
+    <div class="row"><span>TXN 90233</span><span>22/02/2026</span></div>
+    <hr>
+    <div class="row"><span>DARK CHOCOLATE 200G</span><span>USD 8.00</span></div>
+    <div class="row"><span>KEYCHAIN SET</span><span>USD 4.50</span></div>
+    <hr>
+    <div class="row b"><span>TOTAL</span><span>USD 12.50</span></div>
+    <div class="row"><span>EQUIV. (RATE 4.4480)</span><span>RM 55.60</span></div>
+    <div class="row"><span>PAID VISA ****4417</span><span>USD 12.50</span></div>
+    <hr>
+    <div class="c">PRICES INCLUDE ALL TAXES</div>
+  </div></div>
+
+  <!-- 04 non-english -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">VEIKALS LIEPA</div>
+    <div class="c">SIA "LIEPA TIRDZNIECĪBA"<br>PVN LV40001234567<br>BRĪVĪBAS IELA 214, RĪGA, LV-1039</div>
+    <hr>
+    <div class="row"><span>ČEKS NR. 004518</span><span>15.03.2026</span></div>
+    <div class="row"><span>KASE 2</span><span>18:37</span></div>
+    <hr>
+    <div class="row"><span>PIENS 2% 1L</span><span>1.29</span></div>
+    <div class="row"><span>RUDZU MAIZE</span><span>1.85</span></div>
+    <div class="row"><span>SIERS "HOLANDES" 300G</span><span>4.56</span></div>
+    <hr>
+    <div class="row b"><span>KOPĀ</span><span>EUR 7.70</span></div>
+    <div class="row"><span>T.SK. PVN 21%</span><span>1.34</span></div>
+    <div class="row"><span>BANKAS KARTE</span><span>7.70</span></div>
+    <hr>
+    <div class="c">PALDIES, KA IEPĒRKATIES PIE MUMS!</div>
+  </div></div>
+
+  <!-- 05 sum-mismatch -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">HERBAL WELLNESS TRADING</div>
+    <div class="c">NO.88, JALAN MERU JAYA 4,<br>30020 IPOH, PERAK</div>
+    <hr>
+    <div class="row"><span>BILL 2201-A</span><span>08/01/2026</span></div>
+    <hr>
+    <!-- Items intentionally sum to 15.70 while the printed total says 18.70: this receipt
+         exists to trigger the deterministic line-items-sum validator, not the model. -->
+    <div class="row"><span>GINGER TEA 20 SACHETS</span><span>5.00</span></div>
+    <div class="row"><span>HONEY 350G</span><span>7.50</span></div>
+    <div class="row"><span>LOZENGES 3PK</span><span>3.20</span></div>
+    <hr>
+    <div class="row b"><span>TOTAL</span><span>RM 18.70</span></div>
+    <div class="row"><span>CASH</span><span>20.00</span></div>
+    <div class="row"><span>CHANGE</span><span>1.30</span></div>
+    <hr>
+    <div class="c">GOODS SOLD ARE NOT RETURNABLE</div>
+  </div></div>
+
+  <!-- 06 handwriting -->
+  <div class="cut"><div class="r">
+    <div class="c b lg">KEDAI RUNCIT PAK HASSAN</div>
+    <div class="c">KM 14, JALAN KAMPUNG BARU,<br>77300 MERLIMAU, MELAKA</div>
+    <hr>
+    <div class="row"><span>NO. 335</span><span class="hand">19/12/25</span></div>
+    <hr>
+    <div class="row"><span>RICE 5KG</span><span class="hand">10.15</span></div>
+    <div class="row"><span>COOKING OIL 2L</span><span class="hand">13.30</span></div>
+    <hr>
+    <div class="row b"><span>TOTAL</span><span class="hand b">RM 23.45</span></div>
+    <hr>
+    <div class="c">TERIMA KASIH</div>
+  </div></div>
+
+</div>
+</body></html>

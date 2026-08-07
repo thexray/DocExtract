@@ -82,6 +82,28 @@ Line-item extraction exists in the schema but is not scored here: SROIE's ground
 no line items. Scoring it against [CORD](https://github.com/clovaai/cord) (CC BY 4.0,
 Indonesian receipts) is the natural extension.
 
+### What the failures actually look like
+
+The columns above are aggregates, and an aggregate hides the shape of its errors. These six
+receipts each isolate one failure pattern seen in the eval mismatches, so the error modes
+behind the table are inspectable rather than merely counted.
+
+They are illustrations, not scored documents. Every one is fictitious and self-made —
+invented businesses, people, and registration numbers — because the corpus the numbers come
+from cannot be redistributed here. Each was printed and photographed rather than
+screenshotted: the capture carries paper grain, ink bleed into the fibre, and the softening
+of small type, which is the kind of input the extractor actually receives. Sources and the
+print sheet are in [`synthetic/`](synthetic/).
+
+| | |
+|---|---|
+| <img src="synthetic/01-person-name-trap.jpg" width="300"> | **A person's name set above the business.** The largest, boldest line is a person, not the merchant. Visual prominence invites being read as importance, which makes the name the attractive wrong answer for `company`. |
+| <img src="synthetic/02-ambiguous-date.jpg" width="300"> | **`03/04/26` — 3 April or 4 March?** Nothing on the receipt disambiguates, so the model has to guess a locale. Normalization-tolerant comparison forgives formats, not a wrong guess. |
+| <img src="synthetic/03-multi-currency.jpg" width="300"> | **Two currencies, one total.** `USD 12.50` is the amount charged; `RM 55.60` is the same money in another unit. Reaching for the larger figure, or for the local one, both yield a wrong `total`. |
+| <img src="synthetic/04-non-english.jpg" width="300"> | **Latvian, with `KOPĀ` for total and `PVN` for VAT.** No English anchor words. The layout is legible and the labels are not, which separates reading text from knowing which field it names. |
+| <img src="synthetic/05-sum-mismatch.jpg" width="300"> | **Items sum to 15.70; the printed total says 18.70.** Not a model error. The deterministic validator catches the arithmetic and routes the document to `needs-review` even when every field was read correctly. |
+| <img src="synthetic/06-handwriting.jpg" width="300"> | **Amounts written by hand over printed labels.** The stroke shapes are where digit confusion lives, and the total is the field least able to absorb it. |
+
 ## Asking the corpus questions
 
 Extraction produces a corpus, and the next thing anyone wants is to ask it something. This
@@ -165,8 +187,9 @@ answer-only metric would have blamed the wrong component.
 
 No dataset files are committed to this repository. SROIE's original license terms are
 unclear (community mirrors relicense only annotations), and while CORD is CC BY 4.0, the
-posture is uniform: `scripts/download-datasets.ps1` fetches everything locally. Sample
-imagery in this README, when present, is self-made synthetic receipts.
+posture is uniform: `scripts/download-datasets.ps1` fetches everything locally. Every
+receipt image in this README is a self-made synthetic one from [`synthetic/`](synthetic/);
+no scored document is reproduced.
 
 ## Running it
 
