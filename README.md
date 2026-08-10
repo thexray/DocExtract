@@ -2,8 +2,9 @@
 
 An LLM document-extraction pipeline that publishes its own report card. Receipts and
 invoices go in; validated, typed JSON comes out; the corpus that builds answers questions
-with checked citations. Every number in this README — extraction and retrieval alike — is
-regenerated from stored eval runs by `docextract report`, never hand-edited.
+with checked citations. Every table in this README — extraction, retrieval, and the failure
+counts alike — is regenerated from stored eval runs by `docextract report`, never
+hand-edited; the prose around them cites those stored runs and is written by hand.
 
 Most extraction demos show a cherry-picked success. This project inverts that: a cheap model
 does the reading, a deterministic validator decides what can be trusted, an eval harness
@@ -31,7 +32,7 @@ scored the same way, and the failures get counted and categorized instead of cro
         │        failed docs feed a targeted escalation pass (stronger model,
         │        only where measured accuracy says it pays)
         ▼
- report ── results table below + month-to-date cost vs. a hard budget
+ report ── results + failure-count tables below, month-to-date cost vs. a hard budget
 
  the accepted artifacts are also a corpus:
 
@@ -68,8 +69,9 @@ can be exercised without waiting for a real model to misbehave.
 ## Results
 
 Field-level accuracy against the [SROIE](https://rrc.cvc.uab.es/?ch=13) (ICDAR 2019) ground
-truth; comparison is normalization-tolerant (case, whitespace, punctuation, date formats),
-so the numbers measure reading, not formatting luck.
+truth; comparison is normalization-tolerant (case, whitespace, punctuation, date formats), so
+the numbers measure reading rather than formatting luck — with one known gap, documented
+below, where compact all-digit dates slip through as misses.
 
 <!-- eval-results:begin -->
 | Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |
@@ -84,14 +86,48 @@ Indonesian receipts) is the natural extension.
 
 ### What the failures actually look like
 
-The columns above are aggregates, and an aggregate hides the shape of its errors. These six
-receipts each isolate one failure pattern seen in the eval mismatches, so the error modes
-behind the table are inspectable rather than merely counted.
+The columns above are aggregates, and an aggregate hides the shape of its errors. The same
+runs, counted as documents rather than rates:
 
-They sit outside the scored corpus and change none of its numbers. Every one is fictitious
-and self-made —
-invented businesses, people, and registration numbers — because the corpus the numbers come
-from cannot be redistributed here. Each was printed and photographed rather than
+<!-- miss-counts:begin -->
+| Run | Company | Date | Address | Total |
+|---|---|---|---|---|
+| haiku-250 | 64 of 250 | 59 of 250 | 84 of 249 | 20 of 249 |
+| haiku+escalation-250 | 35 of 250 | 3 of 250 | 36 of 249 | 4 of 249 |
+<!-- miss-counts:end -->
+
+Reading the surviving mismatches is more instructive than the totals, because a large share
+of them are not misreadings at all.
+
+**Company misses are mostly disagreements about which name is the company.** The model
+returns `Three Stooges Bistro & Cafe` where the key says `THREE STOOGES`, keeps the
+registration number in `99 SPEED MART S/B (519537-X)`, and prefers the trading name
+`Brewery Tap` over the printed legal owner. Receipts routinely carry three or four candidate
+entities — brand, legal entity, parent company, mall tenant — and the field's boundary is a
+convention the key encodes but the receipt does not.
+
+**Address misses include cases where the model is right and the key is wrong.** Against
+`SEITA ALAM ... SHAN ALAM` the model returns `SETIA ALAM ... SHAH ALAM`, and against
+`BATANG BEJUNTAL` it returns `BATANG BERJUNTAI` — matching the real place names in both
+cases, and scored as a miss for it. Others turn on trailing store codes the key carries and
+the receipt body does not, like `SITE 1066`. Genuine misreads exist too, such as
+`JALAN ANGSA` read as `JALAN MASA`, but the address column understates reading quality by
+some margin.
+
+**Two of the three surviving date misses are format, not reading.** The keys `20180304` and
+`25032018` are compared against `2018-03-04` and `2018-03-25`: the same dates, in compact
+all-digit forms the comparator does not normalize. On this evidence date extraction is a
+single genuine miss in 250, and the published figure is conservative rather than flattering.
+
+**Totals fail by cents when they fail.** Two of the four are `112.45` read as `112.46` and
+`72.93` read as `72.95` — digit-level slips on a field that otherwise survives at the top of
+the table.
+
+The six receipts below isolate these categories one per image, so the error modes are
+inspectable rather than merely counted. They sit outside the scored corpus and change none of
+its numbers. Every one is fictitious and self-made — invented businesses, people, and
+registration numbers — because the corpus the numbers come from cannot be redistributed here.
+Each was printed and photographed rather than
 screenshotted: the capture carries paper grain, ink bleed into the fibre, and the softening
 of small type, which is the kind of input the extractor actually receives. Sources and the
 print sheet are in [`synthetic/`](synthetic/).
@@ -251,6 +287,12 @@ Configuration layers: `appsettings.json` (committed, non-secret defaults) →
 - Company names and addresses are scored with normalization-tolerant exact match; a model
   reading "SDN BHD" where the receipt prints "SDN. BHD." ties, but a paraphrase does not —
   near-misses count as misses.
+- The date comparator does not normalize compact all-digit keys (`20180304`, `25032018`),
+  so a correct reading of those receipts is scored as a miss. Two of the three surviving date
+  mismatches are this, which makes the date column pessimistic. It is left uncorrected here
+  rather than quietly patched, because changing a comparator after seeing which way it moves
+  the number is how measurement harnesses start flattering their subject; the fix belongs
+  with a re-run of the whole scored corpus, not with this paragraph.
 - The validator's needs-review flags are conservative by design: a receipt with a service
   charge can fail the line-items-sum rule while every extracted field is correct.
 - Confidence values are the model's self-assessment. They gate the review split; they are

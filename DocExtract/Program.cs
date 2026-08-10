@@ -141,13 +141,19 @@ try
             }
 
             var table = new StringBuilder();
+            var missTable = new StringBuilder();
             // Rows are joined with an explicit \n, never Environment.NewLine: this table is
             // written into the README by whichever machine runs `report`, and line endings
             // that follow the OS would produce a diff that changes no number.
             void Row(string s) => table.Append(s).Append('\n');
+            void MissRow(string s) => missTable.Append(s).Append('\n');
 
             Row("| Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |");
             Row("|---|---|---|---|---|---|---|---|---|---|---|");
+            // The accuracy table answers "how often"; this one answers "how many", because a
+            // failure taxonomy needs counts and a reader should not have to do the arithmetic.
+            MissRow("| Run | Company | Date | Address | Total |");
+            MissRow("|---|---|---|---|---|");
             foreach (var line in File.ReadLines(runsPath))
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
@@ -162,9 +168,20 @@ try
                     $"| {acc.GetProperty("address").GetDouble():P1} | {acc.GetProperty("total").GetDouble():P1} " +
                     $"| {r.GetProperty("exact_match").GetDouble():P1} | ${cost:0.00} | ${cost / docs:0.000} " +
                     $"| {r.GetProperty("avg_ms").GetInt64() / 1000.0:0.0} |");
+
+                var graded = r.GetProperty("graded");
+                string Missed(string field)
+                {
+                    var g = graded.GetProperty(field).GetInt32();
+                    return $"{(int)Math.Round(g * (1 - acc.GetProperty(field).GetDouble()))} of {g}";
+                }
+                MissRow(
+                    $"| {r.GetProperty("label").GetString()} | {Missed("company")} | {Missed("date")} " +
+                    $"| {Missed("address")} | {Missed("total")} |");
             }
             Console.WriteLine(table.ToString());
-            WriteReadmeBlocks(table.ToString(), retrievalTable);
+            Console.WriteLine("misses:\n" + missTable.ToString());
+            WriteReadmeBlocks(table.ToString(), retrievalTable, missTable.ToString());
             break;
         }
 
@@ -220,13 +237,15 @@ string Opt(string name, string fallback)
 
 // Both README tables are generated, never hand-edited — that is the claim the README makes
 // about its own numbers, so the only way a figure gets in there is through this function.
-void WriteReadmeBlocks(string? evalTable, string? retrievalTable)
+void WriteReadmeBlocks(string? evalTable, string? retrievalTable, string? missTable = null)
 {
     var readme = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "README.md"));
     if (!File.Exists(readme)) return;
 
     var text = File.ReadAllText(readme);
-    var updated = Replace(Replace(text, "eval-results", evalTable), "retrieval-results", retrievalTable);
+    var updated = Replace(
+        Replace(Replace(text, "eval-results", evalTable), "retrieval-results", retrievalTable),
+        "miss-counts", missTable);
     if (updated == text) return;
     File.WriteAllText(readme, updated);
     Console.WriteLine($"README tables regenerated: {readme}");
