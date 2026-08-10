@@ -21,6 +21,13 @@ main README shows.
 Pipeline for the README shots: open in a browser → print (see below) → photograph the
 paper → run `docextract extract` on the photo.
 
+That extraction pass has been run and its findings are written up in the main README. Point
+`DataDirectory` at a scratch directory when repeating it: `RetrievalEvalService` indexes
+every artifact under `extractions/` without filtering, so extracting these into the default
+data directory would silently grow the retrieval corpus past the 250 documents the published
+retrieval numbers describe. The extraction eval is unaffected either way — it keys on SROIE
+ground-truth files, which these receipts do not have.
+
 The photo step is what makes these images real input rather than rendered HTML: the capture
 carries paper grain, ink bleed into the fibre, and the softening of small type that no
 screenshot reproduces. It is not a stress test of camera conditions — the shots are

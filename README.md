@@ -88,7 +88,8 @@ The columns above are aggregates, and an aggregate hides the shape of its errors
 receipts each isolate one failure pattern seen in the eval mismatches, so the error modes
 behind the table are inspectable rather than merely counted.
 
-They are illustrations, not scored documents. Every one is fictitious and self-made —
+They sit outside the scored corpus and change none of its numbers. Every one is fictitious
+and self-made —
 invented businesses, people, and registration numbers — because the corpus the numbers come
 from cannot be redistributed here. Each was printed and photographed rather than
 screenshotted: the capture carries paper grain, ink bleed into the fibre, and the softening
@@ -103,6 +104,41 @@ print sheet are in [`synthetic/`](synthetic/).
 | <img src="synthetic/04-non-english.jpg" width="300"> | **Latvian, with `KOPĀ` for total and `PVN` for VAT.** No English anchor words. The layout is legible and the labels are not, which separates reading text from knowing which field it names. |
 | <img src="synthetic/05-sum-mismatch.jpg" width="300"> | **Items sum to 15.70; the printed total says 18.70.** Not a model error. The deterministic validator catches the arithmetic and routes the document to `needs-review` even when every field was read correctly. |
 | <img src="synthetic/06-handwriting.jpg" width="300"> | **Amounts written by hand over printed labels.** The stroke shapes are where digit confusion lives, and the total is the field least able to absorb it. |
+
+Running all six through the same Haiku-first pipeline cost $0.27. Three traps sprang and
+three did not, and the split is more interesting than the count.
+
+The person-name receipt failed as designed: `vendor` came back `TAN MEI LING` — the cashier —
+at 0.95 confidence, and the document was **accepted**. A wrong name is a well-formed string,
+and no deterministic rule can tell it from a right one.
+
+The date trap sprang twice, once by accident. `03/04/26` was read as 4 March instead of
+3 April; and `08/01/2026`, on the sum-mismatch receipt that was never built to test dates,
+was read as 1 August instead of 8 January. Both flips went month-first. The other four
+receipts happen to carry a day above 12, where the ordering cannot be mistaken, and all four
+were read correctly. So the failure is not digit misreading — it is defaulting to US ordering
+wherever the receipt allows it, which is a different bug with a different fix.
+
+Self-reported confidence caught one of those two. The `03/04/26` date came back at 0.60
+against 0.95 everywhere else, landing on the `MinFieldConfidence` floor exactly. The
+`08/01/2026` flip carried 0.95 and signalled nothing.
+
+The three traps that did not spring: multi-currency picked `USD 12.50` over the `RM 55.60`
+conversion line; the Latvian receipt gave vendor, date, total, currency and the 21% `PVN` tax
+correctly with no English anchor words; and the handwritten amounts were read exactly,
+including the `23.45` total. One incidental slip — a line item read `SIERS "HOILANDES"` for
+`SIERS "HOLANDES"`.
+
+The validator's behaviour here is the part worth sitting with. Exactly one document was held
+for review — the sum-mismatch receipt, on arithmetic — and it is the one receipt where the
+model read every field correctly. The two receipts carrying real field errors were both
+accepted. Structural checks catch structural faults; semantic errors are invisible to them,
+which is precisely why accuracy is measured against ground truth instead of inferred from the
+review split.
+
+Six receipts is an anecdote, not a rate, and these were printed cleanly and shot straight-on,
+making them easier than the scanned corpus. Nothing here revises the table above; it shows
+what the table's misses are made of.
 
 ## Asking the corpus questions
 
