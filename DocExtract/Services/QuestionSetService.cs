@@ -30,7 +30,40 @@ public sealed class QuestionSetService(IConfiguration config, string dataDir)
     public string QuestionsPath => Path.Combine(dataDir, "retrieval", "questions.jsonl");
 
     /// <summary>
-    /// Builds the question set from ground truth for the documents that have artifacts, and
+    /// Returns the pinned question set if one exists, otherwise derives it and pins it.
+    ///
+    /// Derivation reads the ground-truth keys through <see cref="GroundTruth.ParseDate"/>, and
+    /// keys it cannot parse are dropped — so a change to the date comparator silently changes
+    /// which questions exist, and with them every recall figure measured against them. That is
+    /// a yardstick that moves when the thing beside it is repaired. Pinning makes the set an
+    /// input: once written, it is the yardstick until somebody deletes the file on purpose.
+    ///
+    /// The cost of pinning is that the file records the derivation rules as they stood when it
+    /// was written, not as they stand now. Delete it to re-derive — and expect the retrieval
+    /// numbers to move, because they are then measured against different questions.
+    /// </summary>
+    public List<RetrievalQuestion> Load(IEnumerable<string> corpusDocIds, int wanted)
+    {
+        if (!File.Exists(QuestionsPath)) return Build(corpusDocIds, wanted);
+
+        var pinned = File.ReadLines(QuestionsPath)
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => JsonSerializer.Deserialize<RetrievalQuestion>(l))
+            .OfType<RetrievalQuestion>()
+            .ToList();
+
+        // A pinned set that no longer matches what was asked for is a silent mismatch, so say
+        // so rather than quietly scoring against the wrong number of questions.
+        if (pinned.Count != wanted)
+            Console.WriteLine(
+                $"eval --retrieval: using pinned question set ({pinned.Count} questions) " +
+                $"rather than the {wanted} requested — delete {QuestionsPath} to re-derive");
+
+        return pinned;
+    }
+
+    /// <summary>
+    /// Derives the question set from ground truth for the documents that have artifacts, and
     /// writes it to data/retrieval/questions.jsonl. Regenerating is free — no model is called.
     /// </summary>
     public List<RetrievalQuestion> Build(IEnumerable<string> corpusDocIds, int wanted)

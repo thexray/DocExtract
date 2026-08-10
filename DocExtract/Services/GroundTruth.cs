@@ -21,6 +21,12 @@ internal static class GroundTruth
         "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy",
         "dd/MM/yy", "d/M/yy", "dd-MM-yy", "d-M-yy", "dd.MM.yy",
         "yyyy-MM-dd", "dd MMM yyyy", "d MMM yyyy", "dd MMM yy",
+        // Compact all-digit keys ("20180304", "25032018"). Without these a correct reading
+        // scores as a miss purely on format, which is the one thing this comparator exists to
+        // prevent. The two forms cannot collide on real receipt dates: a yyyyMMdd string for a
+        // 20xx year reads as day 20, month 18 under ddMMyyyy, and a ddMMyyyy string puts the
+        // "20" of the year in the month position — each is invalid under the other.
+        "yyyyMMdd", "ddMMyyyy",
     ];
 
     public static DateTime? ParseDate(string s) =>

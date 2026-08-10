@@ -70,14 +70,24 @@ can be exercised without waiting for a real model to misbehave.
 
 Field-level accuracy against the [SROIE](https://rrc.cvc.uab.es/?ch=13) (ICDAR 2019) ground
 truth; comparison is normalization-tolerant (case, whitespace, punctuation, date formats), so
-the numbers measure reading rather than formatting luck — with one known gap, documented
-below, where compact all-digit dates slip through as misses.
+the numbers measure reading rather than formatting luck.
+
+The third row is not a third extraction. It is the second one re-scored after a bug was found
+in the date comparator, which had been failing to normalize compact all-digit keys like
+`20180304` and counting a correct reading as a miss. Fixing it moved date from 98.8% to 99.6%
+and exact match from 72.8% to 73.2%; no other column moved, and no model was called, because
+scoring reads artifacts already on disk. Both rows are kept rather than the old one being
+quietly overwritten — a report card that edits its own history is worth less than one that
+shows the correction. The first row cannot be re-scored: escalation overwrote the artifacts it
+replaced, so the haiku-only state no longer exists on disk and its date column carries the
+same pessimism, uncorrected.
 
 <!-- eval-results:begin -->
 | Run | Models | Docs | Company | Date | Address | Total | Exact match | Cost | $/doc | Avg s/doc |
 |---|---|---|---|---|---|---|---|---|---|---|
 | haiku-250 | claude-haiku-4-5 | 250 | 74.4% | 76.4% | 66.3% | 92.0% | 42.4% | $8.99 | $0.036 | 18.8 |
 | haiku+escalation-250 | claude-haiku-4-5+claude-sonnet-5 | 250 | 86.0% | 98.8% | 85.5% | 98.4% | 72.8% | $20.14 | $0.081 | 15.6 |
+| haiku+escalation-250-rescored | claude-haiku-4-5+claude-sonnet-5 | 250 | 86.0% | 99.6% | 85.5% | 98.4% | 73.2% | $20.14 | $0.081 | 15.6 |
 <!-- eval-results:end -->
 
 Line-item extraction exists in the schema but is not scored here: SROIE's ground truth has
@@ -94,6 +104,7 @@ runs, counted as documents rather than rates:
 |---|---|---|---|---|
 | haiku-250 | 64 of 250 | 59 of 250 | 84 of 249 | 20 of 249 |
 | haiku+escalation-250 | 35 of 250 | 3 of 250 | 36 of 249 | 4 of 249 |
+| haiku+escalation-250-rescored | 35 of 250 | 1 of 250 | 36 of 249 | 4 of 249 |
 <!-- miss-counts:end -->
 
 Reading the surviving mismatches is more instructive than the totals, because a large share
@@ -114,10 +125,14 @@ the receipt body does not, like `SITE 1066`. Genuine misreads exist too, such as
 `JALAN ANGSA` read as `JALAN MASA`, but the address column understates reading quality by
 some margin.
 
-**Two of the three surviving date misses are format, not reading.** The keys `20180304` and
-`25032018` are compared against `2018-03-04` and `2018-03-25`: the same dates, in compact
-all-digit forms the comparator does not normalize. On this evidence date extraction is a
-single genuine miss in 250, and the published figure is conservative rather than flattering.
+**Dates are down to a single genuine miss, and finding it was a lesson about the harness.**
+Reading the mismatches showed two of the three were the comparator rather than the model: the
+keys `20180304` and `25032018` were being compared against `2018-03-04` and `2018-03-25` —
+the same dates in a form the parser did not accept. The fix is the `-rescored` row. It is
+worth being precise about why that was safe to change: the correction is right on its own
+terms, since those strings denote the same day whichever way the score moves, and a rule
+answerable without looking at the result is one that motivated reasoning cannot bend. A
+comparator adjusted because it *raised* the number would be worth nothing.
 
 **Totals fail by cents when they fail.** Two of the four are `112.45` read as `112.46` and
 `72.93` read as `72.95` — digit-level slips on a field that otherwise survives at the top of
@@ -193,6 +208,16 @@ that is merely probable silently caps recall and looks like a retriever problem.
 The index is built from what the extractor produced, not from the answer key. A receipt whose
 vendor was misread is genuinely hard to find by vendor name, and indexing the ground truth
 instead would hide that behind numbers that no longer describe the system anyone would run.
+
+The question set is derived once and then **pinned to disk**, and the reason is a trap this
+project walked into. Questions come from ground-truth keys, and a key whose date will not
+parse is dropped. So when the date comparator was fixed above, three more keys became
+parseable, the generated set changed, and baseline recall@1 moved from 72.1% to 73.7% —
+without one line of the retriever changing. Recall figures are only comparable against a
+fixed set of questions, so the set is now an input rather than a by-product: it is written
+once and reused until somebody deletes the file deliberately. The cost of that choice is
+recorded honestly — the pinned set was derived before the comparator fix and so omits three
+receipts it would now admit.
 
 <!-- retrieval-results:begin -->
 | Run | Pipeline | Docs | Questions | Recall@1 | Recall@5 | Recall@10 | MRR | Grounded | Cost |
@@ -287,12 +312,15 @@ Configuration layers: `appsettings.json` (committed, non-secret defaults) →
 - Company names and addresses are scored with normalization-tolerant exact match; a model
   reading "SDN BHD" where the receipt prints "SDN. BHD." ties, but a paraphrase does not —
   near-misses count as misses.
-- The date comparator does not normalize compact all-digit keys (`20180304`, `25032018`),
-  so a correct reading of those receipts is scored as a miss. Two of the three surviving date
-  mismatches are this, which makes the date column pessimistic. It is left uncorrected here
-  rather than quietly patched, because changing a comparator after seeing which way it moves
-  the number is how measurement harnesses start flattering their subject; the fix belongs
-  with a re-run of the whole scored corpus, not with this paragraph.
+- The `haiku-250` row is scored with the pre-fix date comparator and cannot be corrected:
+  escalation overwrote the artifacts it replaced, so there is nothing left on disk to
+  re-score. Its date column is pessimistic by an unknown margin, and the two rows are
+  therefore not scored identically — compare the `-rescored` row against nothing but itself.
+- The retrieval question set is pinned rather than re-derived on every run. It has to be:
+  questions are built from ground-truth keys, keys that fail to parse are dropped, and the
+  date fix above made three more of them parseable — which silently changed which questions
+  existed and moved baseline recall@1 by 1.6 points without the retriever changing at all. A
+  yardstick that moves when the thing beside it is repaired cannot measure the repair.
 - The validator's needs-review flags are conservative by design: a receipt with a service
   charge can fail the line-items-sum rule while every extracted field is correct.
 - Confidence values are the model's self-assessment. They gate the review split; they are

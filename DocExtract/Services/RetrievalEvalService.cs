@@ -44,7 +44,7 @@ public sealed class RetrievalEvalService(
         }
 
         var index = RetrievalIndex.Build(artifacts);
-        var questions = new QuestionSetService(config, dataDir).Build(index.DocIds, opt.Questions);
+        var questions = new QuestionSetService(config, dataDir).Load(index.DocIds, opt.Questions);
         if (questions.Count == 0)
         {
             Console.Error.WriteLine("eval --retrieval: ground truth produced no answerable questions");
